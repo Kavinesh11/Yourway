@@ -1,0 +1,14 @@
+{
+    "api_keys": {
+        "tomtom": "PlVgTtZKOGse4OKsVrg4ReoQjfmjXaXN",
+        "google_maps": "AIzaSyBRmzcF4s3bkYFvXc_7GXci2Dfj6Gs3vsQ",
+        "aqicn": "4b3d8670a78f9ff63aca799ef32d1333a5f22661"
+    },
+    "servers": {
+        "osrm": "http://router.project-osrm.org"
+    },
+    "general": {
+        "units": "Miles",
+        "log_level": "INFO"
+    }
+}
