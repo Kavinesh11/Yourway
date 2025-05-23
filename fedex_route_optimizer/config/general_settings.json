@@ -1,0 +1,6 @@
+{
+    "general": {
+        "units": "Miles",
+        "log_level": "INFO"
+    }
+}

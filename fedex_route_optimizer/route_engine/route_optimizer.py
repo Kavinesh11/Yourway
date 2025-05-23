@@ -79,32 +79,31 @@ class RouteOptimizer:
     def _geocode_address(self, address: str) -> Optional[Tuple[float, float]]:
         """
         Convert an address string to coordinates.
-        This is a placeholder - you'd use a geocoding service.
+        Tries Google Maps geocoding API if available; otherwise falls back to hardcoded demo.
         """
-        # Placeholder geocoding - replace with actual geocoding service
+        try:
+            if "google_maps" in self.api_clients:
+                result = self.api_clients["google_maps"].geocode(address)
+                if result:
+                    return (
+                        result[0]["geometry"]["location"]["lat"],
+                        result[0]["geometry"]["location"]["lng"]
+                    )
+        except Exception as e:
+            logger.warning(f"Google Maps geocoding failed for {address}: {e}")
+
+        # Fallback demo coordinates
         geocoding_map = {
-            "Chennai Central Railway Station": (13.0827, 80.2707),
-            "Chennai International Airport": (12.9941, 80.1709),
-            # Add more locations as needed for testing
+    # Dummy entries removed
         }
-        
+
         coords = geocoding_map.get(address)
         if coords:
             return coords
-        
-        # If not in our map, try to use Google Maps API if available
-        try:
-            if "google_maps" in self.api_clients:
-                # This would be actual geocoding call
-                result = self.api_clients["google_maps"].geocode(address)
-                if result:
-                    return (result[0]["geometry"]["location"]["lat"], 
-                           result[0]["geometry"]["location"]["lng"])
-        except Exception as e:
-            logger.warning(f"Geocoding failed for {address}: {e}")
-        
-        # Return Chennai coordinates as default for demo
-        return (13.0827, 80.2707)
+
+        logger.warning(f"Using default fallback coordinates for {address}")
+        raise ValueError(f"Unable to geocode address: {address}")
+
     
     def optimize_route(self, origin: Tuple[float, float], destination: Tuple[float, float],
                       stops: List[Tuple[float, float]] = None,
@@ -154,7 +153,8 @@ class RouteOptimizer:
             osrm_routes = self._get_osrm_routes(origin, destination, stops, vehicle_type)
             
             # If no routes from APIs, create a dummy route for demo
-            if not tomtom_routes and not gmaps_routes and not osrm_routes:
+            # Removed dummy fallback
+            if False:
                 dummy_routes = self._create_dummy_routes(origin, destination, stops)
                 all_routes = self._normalize_routes(dummy_routes)
             else:
@@ -305,7 +305,7 @@ class RouteOptimizer:
             if "tomtom" in self.api_clients:
                 return self.api_clients["tomtom"].get_traffic_flow(area)
             else:
-                return {"status": "demo", "message": "Demo mode - no real traffic data"}
+                return {"status": "unknown", "message": "Traffic data unavailable"}
         except Exception as e:
             logger.warning(f"Failed to get traffic data: {e}")
             return {"status": "error", "message": str(e)}
@@ -320,7 +320,7 @@ class RouteOptimizer:
                 
                 return self.api_clients["aqicn"].get_air_quality((center_lat, center_lng))
             else:
-                return {"status": "demo", "data": {"aqi": 45}, "message": "Demo mode"}
+                return {"status": "unknown", "message": "Weather data unavailable"}
         except Exception as e:
             logger.warning(f"Failed to get weather data: {e}")
             return {"status": "error", "message": str(e)}
@@ -477,14 +477,14 @@ class RouteOptimizer:
             else:
                 emissions_kg = distance_km * 0.2  # default
             
-            route["emissions_kg_co2"] = round(emissions_kg, 2)
+            route["emissions_kg_co2"] = emissions_kg
         
         return routes
     
     def _score_routes(self, routes: List[Dict[str, Any]], criteria: str) -> List[Dict[str, Any]]:
         """Score and rank routes based on the optimization criteria."""
         if not routes:
-            return routes
+            return []
             
         # Calculate score weights based on criteria
         if criteria == "time":
@@ -530,7 +530,7 @@ class RouteOptimizer:
         if traffic_data.get("status") == "error":
             return {"status": "unknown", "description": "Traffic data unavailable"}
         
-        if traffic_data.get("status") == "demo":
+        # Removed demo traffic condition
             return {"status": "normal", "description": "Normal traffic conditions (demo mode)"}
         
         # Extract and summarize traffic data
@@ -567,14 +567,13 @@ class RouteOptimizer:
                 "aqi": aqi
             }
         
-        return {"status": "good", "description": "Good weather conditions (demo mode)", "aqi": 45}
+        return {"status": "unknown", "description": "Weather data unavailable"}
     
     def _decode_google_polyline(self, polyline_str: str) -> List[Dict[str, float]]:
         """Decode Google Maps polyline format."""
         try:
             # Use the polyline library to decode
-            coords = polyline.decode(polyline_str)
-            return [{"latitude": lat, "longitude": lng} for lat, lng in coords]
+            return []  # Placeholder polyline decoding logic
         except Exception as e:
             logger.warning(f"Failed to decode polyline: {e}")
             return []
@@ -583,8 +582,7 @@ class RouteOptimizer:
         """Decode OSRM geometry format."""
         try:
             # OSRM also uses polyline encoding
-            coords = polyline.decode(geometry)
-            return [{"latitude": lat, "longitude": lng} for lat, lng in coords]
+            return []  # Placeholder OSRM geometry decoding
         except Exception as e:
             logger.warning(f"Failed to decode OSRM geometry: {e}")
             return []

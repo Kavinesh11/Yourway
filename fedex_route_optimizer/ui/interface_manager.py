@@ -38,42 +38,6 @@ except ImportError as e:
         print("✗ Failed to import RouteOptimizer")
         RouteOptimizer = None
     
-    # Create dummy classes for missing modules
-    class DummySettings:
-        def __init__(self):
-            pass
-    
-    class DummyEmissionsCalculator:
-        def __init__(self, settings=None):
-            pass
-        
-        def calculate_emissions(self, distance, vehicle_type, speed=55, gradient=0):
-            # Simple dummy calculation
-            return distance * 0.2  # kg CO2
-        
-        def get_vehicle_baseline_emissions(self, fuel_type):
-            emissions_map = {
-                "Gasoline": 180.0,
-                "Diesel": 160.0,
-                "Electric": 0.0,
-                "Hybrid": 120.0,
-                "Natural Gas": 140.0
-            }
-            return emissions_map.get(fuel_type, 180.0)
-    
-    class DummyDataValidator:
-        def validate_location(self, location):
-            return bool(location and location.strip())
-    
-    class DummyGeocodingService:
-        def geocode(self, address):
-            # Return dummy coordinates for testing
-            geocoding_map = {
-                "Chennai Central Railway Station": (13.0827, 80.2707),
-                "Chennai International Airport": (12.9941, 80.1709),
-            }
-            return geocoding_map.get(address, (13.0827, 80.2707))
-    
     def setup_logger(name):
         import logging
         logger = logging.getLogger(name)
@@ -84,20 +48,22 @@ except ImportError as e:
             logger.addHandler(handler)
             logger.setLevel(logging.INFO)
         return logger
-    
-    # Use dummy classes
-    settings = DummySettings()
-    EmissionsCalculator = DummyEmissionsCalculator
-    DataValidator = DummyDataValidator
-    GeocodingService = DummyGeocodingService
 
 class InterfaceManager:
     def __init__(self, root):
         self.root = root
         self.logger = setup_logger("UI_Interface")
         
-        # Initialize API clients (empty for demo mode)
-        self.api_clients = {}
+        # Initialize API clients with environment variables
+        self.api_clients = {
+            'tomtom_api_key': TOMTOM_API_KEY,
+            'google_api_key': GOOGLE_API_KEY,
+            'aqicn_api_key': AQICN_API_KEY,
+            'osrm_url': OSRM_URL
+        }
+        
+        # Check if API keys are loaded
+        self._check_api_keys()
         
         # Initialize RouteOptimizer - ONLY ONCE!
         if RouteOptimizer:
@@ -119,6 +85,34 @@ class InterfaceManager:
         self.geocoding_service = GeocodingService()
 
         self.setup_ui()
+        self.root.title("FedEx Route Optimizer")
+        self.root.geometry("800x600")
+
+        self.settings_tab = ttk.Frame(self.root)
+        self.settings_tab.pack(fill=tk.BOTH, expand=True)
+
+        self._setup_settings_tab()
+
+    
+    def _check_api_keys(self):
+        """Check if API keys are properly loaded from environment variables."""
+        missing_keys = []
+        
+        if not TOMTOM_API_KEY:
+            missing_keys.append("TOMTOM_API_KEY")
+        if not GOOGLE_API_KEY:
+            missing_keys.append("GOOGLE_MAPS_API_KEY")
+        if not AQICN_API_KEY:
+            missing_keys.append("AQICN_API_KEY")
+        if not OSRM_URL:
+            missing_keys.append("OSRM_SERVER_URL")
+        
+        if missing_keys:
+            warning_msg = f"Missing environment variables: {', '.join(missing_keys)}\n"
+            warning_msg += "Please ensure your .env file contains all required API keys."
+            self.logger.warning(warning_msg)
+        else:
+            self.logger.info("✓ All API keys loaded successfully from environment variables")
 
     def setup_ui(self):
         """Setup the main application UI."""
@@ -162,13 +156,13 @@ class InterfaceManager:
         # Input fields for origin
         ttk.Label(input_frame, text="Origin:").grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
         self.origin_var = tk.StringVar()
-        self.origin_var.set("Chennai Central Railway Station")  # Default value for testing
+        self.origin_var.set("")  # Default value for testing
         ttk.Entry(input_frame, textvariable=self.origin_var, width=40).grid(row=0, column=1, padx=5, pady=5)
         
         # Input fields for destination
         ttk.Label(input_frame, text="Destination:").grid(row=1, column=0, padx=5, pady=5, sticky=tk.W)
         self.destination_var = tk.StringVar()
-        self.destination_var.set("Chennai International Airport")  # Default value for testing
+        self.destination_var.set("")  # Default value for testing
         ttk.Entry(input_frame, textvariable=self.destination_var, width=40).grid(row=1, column=1, padx=5, pady=5)
         
         # Vehicle type dropdown
@@ -263,57 +257,8 @@ class InterfaceManager:
         self.emissions_results.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
     
     def _setup_settings_tab(self):
-        """Setup the settings tab for API configuration."""
-        settings_frame = ttk.LabelFrame(self.settings_tab, text="API Settings")
-        settings_frame.pack(fill=tk.BOTH, expand=False, padx=10, pady=10)
-        
-        # TomTom API Key
-        ttk.Label(settings_frame, text="TomTom API Key:").grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
-        self.tomtom_api_key = tk.StringVar()
-        ttk.Entry(settings_frame, textvariable=self.tomtom_api_key, width=40).grid(row=0, column=1, padx=5, pady=5)
-        
-        # Google Maps API Key
-        ttk.Label(settings_frame, text="Google Maps API Key:").grid(row=1, column=0, padx=5, pady=5, sticky=tk.W)
-        self.google_api_key = tk.StringVar()
-        ttk.Entry(settings_frame, textvariable=self.google_api_key, width=40).grid(row=1, column=1, padx=5, pady=5)
-        
-        # AQICN API Key
-        ttk.Label(settings_frame, text="AQICN API Key:").grid(row=2, column=0, padx=5, pady=5, sticky=tk.W)
-        self.aqicn_api_key = tk.StringVar()
-        ttk.Entry(settings_frame, textvariable=self.aqicn_api_key, width=40).grid(row=2, column=1, padx=5, pady=5)
-        
-        # OSRM Server URL
-        ttk.Label(settings_frame, text="OSRM Server URL:").grid(row=3, column=0, padx=5, pady=5, sticky=tk.W)
-        self.osrm_url = tk.StringVar()
-        self.osrm_url.set("http://router.project-osrm.org")  # Default OSRM public server
-        ttk.Entry(settings_frame, textvariable=self.osrm_url, width=40).grid(row=3, column=1, padx=5, pady=5)
-        
-        # Save settings button
-        ttk.Button(settings_frame, text="Save Settings", command=self._save_settings).grid(
-            row=4, column=1, padx=5, pady=10, sticky=tk.E)
-        
-        # Load settings if they exist
-        self._load_settings()
-        
-        # Additional settings section
-        general_settings = ttk.LabelFrame(self.settings_tab, text="General Settings")
-        general_settings.pack(fill=tk.BOTH, expand=False, padx=10, pady=10)
-        
-        # Units selection
-        ttk.Label(general_settings, text="Distance Units:").grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
-        self.units_var = tk.StringVar()
-        units = ["Miles", "Kilometers"]
-        ttk.Combobox(general_settings, textvariable=self.units_var, values=units, state="readonly").grid(
-            row=0, column=1, padx=5, pady=5, sticky=tk.W)
-        self.units_var.set(units[0])
-        
-        # Log level
-        ttk.Label(general_settings, text="Log Level:").grid(row=1, column=0, padx=5, pady=5, sticky=tk.W)
-        self.log_level_var = tk.StringVar()
-        log_levels = ["INFO", "DEBUG", "WARNING", "ERROR"]
-        ttk.Combobox(general_settings, textvariable=self.log_level_var, values=log_levels, state="readonly").grid(
-            row=1, column=1, padx=5, pady=5, sticky=tk.W)
-        self.log_level_var.set(log_levels[0])
+        """Setup the settings tab for configuration."""
+        # API Status section
     
     def _calculate_routes(self):
         """Calculate routes based on user inputs."""
@@ -533,77 +478,86 @@ class InterfaceManager:
             self.logger.error(f"Error calculating emissions: {str(e)}")
             messagebox.showerror("Error", f"An error occurred: {str(e)}")
             self.status_var.set("Error occurred")
-    
-    def _save_settings(self):
-        """Save API settings to config file."""
+            
+    def save_settings(self):
+        """Save only general settings to config file (not API keys)."""
         try:
             import json
-            
+
             config_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config")
             os.makedirs(config_dir, exist_ok=True)
-            
-            config_file = os.path.join(config_dir, "settings.json")
-            
+
+            config_file = os.path.join(config_dir, "general_settings.json")
+
             settings = {
-                "api_keys": {
-                    "tomtom": self.tomtom_api_key.get(),
-                    "google_maps": self.google_api_key.get(),
-                    "aqicn": self.aqicn_api_key.get()
-                },
-                "servers": {
-                    "osrm": self.osrm_url.get()
-                },
                 "general": {
                     "units": self.units_var.get(),
                     "log_level": self.log_level_var.get()
                 }
             }
-            
+
             with open(config_file, "w") as f:
                 json.dump(settings, f, indent=4)
-                
+
             messagebox.showinfo("Settings", "Settings saved successfully")
-            
+
         except Exception as e:
-            self.logger.error(f"Error saving settings: {str(e)}")
-            messagebox.showerror("Error", f"An error saving settings: {str(e)}")
-    
+            self.logger.error(f"Error saving general settings: {str(e)}")
+            messagebox.showerror("Error", f"Error saving general settings: {str(e)}")
+    def _setup_settings_tab(self):
+        general_settings_frame = ttk.LabelFrame(self.settings_tab, text="General Settings")
+        general_settings_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        # Distance Units Dropdown
+        ttk.Label(general_settings_frame, text="Distance Units:").grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
+        self.units_var = tk.StringVar()
+        distance_units = ["Miles", "Kilometers"]
+        ttk.Combobox(general_settings_frame, textvariable=self.units_var, values=distance_units, state="readonly").grid(row=0, column=1, padx=5, pady=5)
+        self.units_var.set(distance_units[0])
+
+        # Log Level Dropdown
+        ttk.Label(general_settings_frame, text="Log Level:").grid(row=1, column=0, padx=5, pady=5, sticky=tk.W)
+        self.log_level_var = tk.StringVar()
+        log_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        ttk.Combobox(general_settings_frame, textvariable=self.log_level_var, values=log_levels, state="readonly").grid(row=1, column=1, padx=5, pady=5)
+        self.log_level_var.set(log_levels[1])
+
+        # Save Settings Button
+        ttk.Button(general_settings_frame, text="Save General Settings", command=self.save_settings).grid(row=2, column=1, padx=5, pady=10, sticky=tk.E)
+
+        self._load_settings()        
+
     def _load_settings(self):
-        """Load API settings from config file."""
+        """Load only general settings from config file."""
         try:
             import json
-            
+
             config_file = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
-                "config", 
-                "settings.json"
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                "config",
+                "general_settings.json"
             )
-            
+
             if os.path.exists(config_file):
                 with open(config_file, "r") as f:
                     settings = json.load(f)
-                    
-                # Load API keys
-                api_keys = settings.get("api_keys", {})
-                self.tomtom_api_key.set(api_keys.get("tomtom", ""))
-                self.google_api_key.set(api_keys.get("google_maps", ""))
-                self.aqicn_api_key.set(api_keys.get("aqicn", ""))
-                
-                # Load server URLs
-                servers = settings.get("servers", {})
-                self.osrm_url.set(servers.get("osrm", "http://router.project-osrm.org"))
-                
+
                 # Load general settings
                 general = settings.get("general", {})
                 if "units" in general:
                     self.units_var.set(general["units"])
                 if "log_level" in general:
                     self.log_level_var.set(general["log_level"])
-                    
+
         except Exception as e:
-            self.logger.error(f"Error loading settings: {str(e)}")
+            self.logger.error(f"Error loading general settings: {str(e)}")
             # Don't show error to user, just use defaults
 
+
+
+
+# Remove the old _save_settings and _load_settings methods since they're no longer needed
+# The API keys are now loaded from environment variables at the top of the file
 if __name__ == "__main__":
     root = tk.Tk()
     app = InterfaceManager(root)
